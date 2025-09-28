@@ -1,0 +1,9 @@
+0: thumb
+1: index
+2: middle
+3: ring
+4: pinky
+5: palm
+6: backhand
+7: wrist
+8: fingers

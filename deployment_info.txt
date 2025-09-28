@@ -1,0 +1,13 @@
+ExoGlove IMX500 Deployment Package
+===================================
+
+Model: YOLOv8 ExoGlove Detection
+Classes: 9 (thumb, index, middle, ring, pinky, palm, backhand, wrist, fingers)
+Input Size: 640x640x3
+Expected Performance: 15-30 FPS
+Target Hardware: Sony IMX500
+
+Files included:
+- runs/train/exoglove_no_val/weights/best.onnx
+- data.yaml
+- exoglove_classes.txt
