@@ -1,0 +1,43 @@
+{
+    "imx500_object_detection": {
+        "max_detections": 300,
+        "threshold": 0.3,
+        "network_file": "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk",
+        "save_input_tensor": {
+            "filename": "/tmp/exoglove_input.raw",
+            "num_tensors": 10,
+            "norm_val": [
+                255,
+                255,
+                255,
+                0
+            ],
+            "norm_shift": [
+                0,
+                0,
+                0,
+                0
+            ]
+        },
+        "temporal_filter": {
+            "tolerance": 0.1,
+            "factor": 0.2,
+            "visible_frames": 4,
+            "hidden_frames": 2
+        },
+        "classes": [
+            "thumb",
+            "index",
+            "middle",
+            "ring",
+            "pinky",
+            "palm",
+            "wrist",
+            "forearm",
+            "elbow"
+        ]
+    },
+    "object_detect_draw_cv": {
+        "line_thickness": 2
+    }
+}
