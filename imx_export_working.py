@@ -126,8 +126,8 @@ def create_deployment_package():
     
     # Add class names
     classes = [
-        'thumb', 'index', 'middle', 'ring', 'pinky',
-        'palm', 'backhand', 'wrist', 'fingers'
+        'apple', 'ball', 'bottle', 'clip', 'glove',
+        'lid', 'plate', 'spoon', 'tape spool'
     ]
     
     classes_file = 'exoglove_classes.txt'
@@ -144,7 +144,7 @@ def create_deployment_package():
         f.write("ExoGlove IMX500 Deployment Package\n")
         f.write("=" * 35 + "\n\n")
         f.write("Model: YOLOv8 ExoGlove Detection\n")
-        f.write("Classes: 9 (thumb, index, middle, ring, pinky, palm, backhand, wrist, fingers)\n")
+        f.write("Classes: 9 (apple, ball, bottle, clip, glove, lid, plate, spoon, tape spool)\n")
         f.write("Input Size: 640x640x3\n")
         f.write("Expected Performance: 15-30 FPS\n")
         f.write("Target Hardware: Sony IMX500\n\n")

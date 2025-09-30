@@ -23,15 +23,15 @@
     
         "classes":
         [
-            "thumb",
-            "index",
-            "middle",
-            "ring",
-            "pinky",
-            "palm",
-            "wrist",
-            "forearm",
-            "elbow"
+            "apple",
+            "ball",
+            "bottle",
+            "clip",
+            "glove",
+            "lid",
+            "plate",
+            "spoon",
+            "tape spool"
         ]
     },
 

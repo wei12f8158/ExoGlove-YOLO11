@@ -12,8 +12,8 @@ class ExoGlovePicamera2Detector:
     def __init__(self, model_path):
         self.model_path = model_path
         self.classes = [
-            "thumb", "index", "middle", "ring", "pinky",
-            "palm", "wrist", "forearm", "elbow"
+            "apple", "ball", "bottle", "clip", "glove",
+            "lid", "plate", "spoon", "tape spool"
         ]
         self.colors = [
             (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),

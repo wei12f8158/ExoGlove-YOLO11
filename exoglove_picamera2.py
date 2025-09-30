@@ -18,8 +18,8 @@ def load_exoglove_config():
             "threshold": 0.3,
             "network_file": "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk",
             "classes": [
-                "thumb", "index", "middle", "ring", "pinky",
-                "palm", "wrist", "forearm", "elbow"
+                "apple", "ball", "bottle", "clip", "glove",
+                "lid", "plate", "spoon", "tape spool"
             ]
         }
     }
