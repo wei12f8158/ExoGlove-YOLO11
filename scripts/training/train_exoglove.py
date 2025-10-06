@@ -42,10 +42,13 @@ def setup_device():
     elif torch.backends.mps.is_available():
         device = "mps"  # Apple Silicon GPU
         print("🍎 Using Apple Silicon GPU (MPS) for training")
+        # Set MPS fallback for unsupported operations
+        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+        print("⚠️  MPS fallback enabled for unsupported operations")
     else:
         device = "cpu"
         print("💻 Using CPU for training")
-    
+
     return device
 
 def train_model():
@@ -62,17 +65,17 @@ def train_model():
     # Training parameters optimized for MacBook and Pi deployment
     training_args = {
         'data': 'data.yaml',
-        'epochs': 100,  # Adjust based on your needs
+        'epochs': 10,   # Reduced for testing
         'imgsz': 640,   # Standard YOLO input size
-        'batch': 16,    # Adjust based on your MacBook's memory
+        'batch': 8,     # Reduced batch size for stability
         'device': device,
         'project': 'runs/train',
-        'name': 'exoglove_v1',
+        'name': 'exoglove_v2',
         'save': True,
-        'save_period': 10,  # Save checkpoint every 10 epochs
+        'save_period': 5,   # Save checkpoint every 5 epochs
         'cache': False,     # Disable caching to save disk space
-        'workers': 4,       # Number of worker threads
-        'patience': 20,     # Early stopping patience
+        'workers': 2,       # Reduced workers for stability
+        'patience': 10,     # Early stopping patience
         'optimizer': 'AdamW',  # Good optimizer for this task
         'lr0': 0.01,       # Initial learning rate
         'lrf': 0.01,       # Final learning rate
@@ -91,7 +94,7 @@ def train_model():
         'overlap_mask': True,
         'mask_ratio': 4,
         'dropout': 0.0,
-        'val': True,       # Validate during training
+        'val': False,      # Disable validation during training to avoid MPS issues
         'plots': True,     # Generate training plots
         'verbose': True,   # Verbose output
     }
