@@ -1,0 +1,9 @@
+apple
+ball
+bottle
+clip
+glove
+lid
+plate
+spoon
+tape spool
