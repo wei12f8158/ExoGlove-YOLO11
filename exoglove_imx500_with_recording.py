@@ -170,7 +170,7 @@ if __name__ == "__main__":
     print("🚀 ExoGlove IMX500 Object Detection Started!")
     print("="*60)
     print(f"📱 Model: {args.model}")
-    print(f"🎯 Classes: {'', \.join(get_labels())}")
+    print(f"🎯 Classes: {', '.join(get_labels())}")
     print("\n⌨️  Controls:")
     print("  [s] - Save screenshot")
     print("  [r] - Start/Stop recording video")
