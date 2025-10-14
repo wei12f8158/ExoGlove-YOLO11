@@ -87,6 +87,10 @@ def draw_detections(request, stream="main"):
         return
     labels = get_labels()
     with MappedArray(request, stream) as m:
+        # Ensure we have a valid array
+        if m.array is None or m.array.size == 0:
+            return
+            
         # Draw status info
         status_y = 30
         cv2.putText(m.array, f"Frame: {frame_count}", (10, status_y),
@@ -99,26 +103,34 @@ def draw_detections(request, stream="main"):
         cv2.putText(m.array, "s=screenshot r=record q=quit", (10, m.array.shape[0]-10),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        # Draw detections
-        for detection in detections:
-            x, y, w, h = detection.box
-            category_idx = int(detection.category) % len(labels)
-            label = f"{labels[category_idx]} ({detection.conf:.2f})"
+        # Draw detections (limit to first 10 to prevent screen overload)
+        for i, detection in enumerate(detections[:10]):
+            try:
+                x, y, w, h = detection.box
+                # Ensure coordinates are valid
+                if x < 0 or y < 0 or w <= 0 or h <= 0:
+                    continue
+                if x + w > m.array.shape[1] or y + h > m.array.shape[0]:
+                    continue
+                    
+                category_idx = int(detection.category) % len(labels)
+                label = f"{labels[category_idx]} ({detection.conf:.2f})"
 
-            (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            text_x = x + 5
-            text_y = y + 15
+                (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                text_x = max(5, x + 5)
+                text_y = max(20, y + 15)
 
-            overlay = m.array.copy()
-            cv2.rectangle(overlay,
-                          (text_x, text_y - text_height),
-                          (text_x + text_width, text_y + baseline),
-                          (255, 255, 255), cv2.FILLED)
-            alpha = 0.30
-            cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
-            cv2.putText(m.array, label, (text_x, text_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+                # Draw bounding box
+                cv2.rectangle(m.array, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), thickness=2)
+                
+                # Draw label background
+                cv2.rectangle(m.array, (text_x, text_y - text_height - 5), 
+                             (text_x + text_width + 10, text_y + 5), (255, 255, 255), cv2.FILLED)
+                cv2.putText(m.array, label, (text_x + 5, text_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            except Exception as e:
+                # Skip problematic detections
+                continue
 
 def get_args():
     parser = argparse.ArgumentParser(description="ExoGlove IMX500 with Recording")
@@ -159,7 +171,18 @@ if __name__ == "__main__":
     intrinsics.update_with_defaults()
 
     picam2 = Picamera2(imx500.camera_num)
-    config = picam2.create_preview_configuration(controls={"FrameRate": intrinsics.inference_rate}, buffer_count=12)
+    
+    # Create a better camera configuration to fix display issues
+    config = picam2.create_preview_configuration(
+        main={"size": (1280, 720), "format": "RGB888"},
+        controls={
+            "FrameRate": 30,
+            "ExposureTime": 10000,
+            "AnalogueGain": 1.0,
+            "DigitalGain": 1.0
+        },
+        buffer_count=6
+    )
 
     imx500.show_network_fw_progress_bar()
     picam2.start(config, show_preview=True)
@@ -184,7 +207,10 @@ if __name__ == "__main__":
     try:
         while True:
             frame_count += 1
-            last_results = parse_detections(picam2.capture_metadata())
+            
+            # Only process detections every few frames to reduce load
+            if frame_count % 3 == 0:  # Process every 3rd frame
+                last_results = parse_detections(picam2.capture_metadata())
             
             # Check for key press (non-blocking)
             import select
