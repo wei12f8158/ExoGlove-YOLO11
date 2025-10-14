@@ -150,7 +150,11 @@ if __name__ == "__main__":
         exit()
 
     for key, value in vars(args).items():
-        if hasattr(intrinsics, key) and value is not None:
+        if key == 'labels' and value is not None:
+            # Load labels from file
+            with open(value, 'r') as f:
+                intrinsics.labels = [line.strip() for line in f.readlines()]
+        elif hasattr(intrinsics, key) and value is not None:
             setattr(intrinsics, key, value)
     intrinsics.update_with_defaults()
 
