@@ -154,11 +154,8 @@ def draw_detections(request, stream="main"):
                     mid_x = (center_x + glove_center[0]) // 2
                     mid_y = (center_y + glove_center[1]) // 2
                     
-                    # Format distance text based on scale factor
-                    if args.pixel_scale == 1.0:
-                        distance_text = f"{distance_pixels}px"
-                    else:
-                        distance_text = f"{distance_pixels}px ({distance_adjusted:.1f})"
+                    # Format distance text - always show cm
+                    distance_text = f"{distance_adjusted:.1f}cm"
                     
                     # Calculate text size for distance label
                     (dist_text_width, dist_text_height), dist_baseline = cv2.getTextSize(
@@ -202,9 +199,9 @@ def get_args():
                         help="Path to the labels file")
     parser.add_argument("--print-intrinsics", action="store_true",
                         help="Print JSON network_intrinsics then exit")
-    parser.add_argument("--pixel-scale", type=float, default=1.0,
-                        help="Scale factor to convert pixels to real-world units (default: 1.0 = pixels only). "
-                             "Example: 0.1 means 1 pixel = 0.1 units (e.g., cm)")
+    parser.add_argument("--pixel-scale", type=float, default=0.1,
+                        help="Scale factor to convert pixels to centimeters (default: 0.1 = 1 pixel = 0.1 cm). "
+                             "Set to 1.0 to display pixels only. Example: 0.1 means 1 pixel = 0.1 cm")
     return parser.parse_args()
 
 
