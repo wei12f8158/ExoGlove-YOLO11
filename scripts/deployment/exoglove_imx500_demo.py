@@ -1,6 +1,9 @@
 import argparse
 import sys
 from functools import lru_cache
+import os
+import threading
+import time
 
 import cv2
 import numpy as np
@@ -10,10 +13,63 @@ from picamera2.devices import IMX500
 from picamera2.devices.imx500 import (NetworkIntrinsics,
                                       postprocess_nanodet_detection)
 
+# Try to import psutil for memory tracking, fallback if not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    print("⚠️  psutil not available. Install with: pip install psutil")
+    print("   Memory tracking will be disabled.")
+
 # ExoGlove object classes
 EXOGLOVE_CLASSES = ['apple', 'ball', 'bottle', 'clip', 'glove', 'lid', 'plate', 'spoon', 'tape spool']
 
 last_detections = []
+
+# Memory tracking variables
+memory_samples = []
+memory_tracking = False
+memory_lock = threading.Lock()
+
+
+def get_process_memory():
+    """Get current process memory usage in MB"""
+    if not PSUTIL_AVAILABLE:
+        return None
+    try:
+        process = psutil.Process(os.getpid())
+        mem_info = process.memory_info()
+        return {
+            'rss': mem_info.rss / (1024 * 1024),  # Resident Set Size (actual RAM) in MB
+            'vms': mem_info.vms / (1024 * 1024),  # Virtual Memory Size in MB
+            'percent': process.memory_percent()    # Percentage of system RAM
+        }
+    except Exception:
+        return None
+
+
+def track_memory():
+    """Track memory usage in background thread"""
+    global memory_samples, memory_tracking
+    if not PSUTIL_AVAILABLE:
+        return
+    
+    process = psutil.Process(os.getpid())
+    
+    while memory_tracking:
+        try:
+            mem_info = process.memory_info()
+            with memory_lock:
+                memory_samples.append({
+                    'rss': mem_info.rss / (1024 * 1024),  # MB
+                    'vms': mem_info.vms / (1024 * 1024),  # MB
+                    'percent': process.memory_percent(),
+                    'time': time.time()
+                })
+            time.sleep(0.5)  # Sample every 0.5 seconds
+        except Exception:
+            break
 
 
 class Detection:
@@ -74,6 +130,23 @@ def draw_detections(request, stream="main"):
         return
     labels = get_labels()
     with MappedArray(request, stream) as m:
+        # Display memory usage in corner (if available)
+        if PSUTIL_AVAILABLE:
+            mem = get_process_memory()
+            if mem:
+                mem_text = f"Memory: {mem['rss']:.1f}MB"
+                # Draw background for text
+                (text_width, text_height), baseline = cv2.getTextSize(
+                    mem_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+                )
+                cv2.rectangle(m.array,
+                             (10, m.array.shape[0] - text_height - 10),
+                             (10 + text_width + 4, m.array.shape[0] + baseline),
+                             (0, 0, 0), cv2.FILLED)
+                # Draw memory text
+                cv2.putText(m.array, mem_text,
+                           (12, m.array.shape[0] - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         for detection in detections:
             x, y, w, h = detection.box
             # Ensure category index is within bounds
@@ -132,6 +205,8 @@ def get_args():
                         help="Path to the labels file")
     parser.add_argument("--print-intrinsics", action="store_true",
                         help="Print JSON network_intrinsics then exit")
+    parser.add_argument("--track-memory", action="store_true",
+                        help="Track and log memory usage during execution")
     return parser.parse_args()
 
 
@@ -176,14 +251,81 @@ if __name__ == "__main__":
 
     last_results = None
     picam2.pre_callback = draw_detections
-    print("ExoGlove Object Detection Demo Started!")
-    print(f"Detecting: {', '.join(EXOGLOVE_CLASSES)}")
-    print("Press Ctrl+C to stop")
+    
+    # Start memory tracking if requested and available
+    memory_thread = None
+    if args.track_memory and PSUTIL_AVAILABLE:
+        global memory_tracking
+        memory_tracking = True
+        memory_thread = threading.Thread(target=track_memory, daemon=True)
+        memory_thread.start()
+        print("ExoGlove Object Detection Demo Started!")
+        print(f"Detecting: {', '.join(EXOGLOVE_CLASSES)}")
+        print("📊 Memory tracking: ON (sampling every 0.5s)")
+        print("Press Ctrl+C to stop")
+    else:
+        print("ExoGlove Object Detection Demo Started!")
+        print(f"Detecting: {', '.join(EXOGLOVE_CLASSES)}")
+        if args.track_memory and not PSUTIL_AVAILABLE:
+            print("⚠️  Memory tracking requested but psutil not available")
+        print("Press Ctrl+C to stop")
     
     try:
         while True:
             last_results = parse_detections(picam2.capture_metadata())
     except KeyboardInterrupt:
         print("\nStopping ExoGlove detection...")
+        
+        # Stop memory tracking
+        if memory_tracking:
+            global memory_tracking
+            memory_tracking = False
+            if memory_thread:
+                memory_thread.join(timeout=1.0)
+        
         picam2.stop()
+        
+        # Print memory statistics if tracking was enabled
+        if args.track_memory and memory_samples:
+            with memory_lock:
+                rss_values = [s['rss'] for s in memory_samples]
+                vms_values = [s['vms'] for s in memory_samples]
+                percent_values = [s['percent'] for s in memory_samples]
+            
+            print("\n" + "="*60)
+            print("📊 MEMORY USAGE STATISTICS")
+            print("="*60)
+            print(f"   Samples collected: {len(memory_samples)}")
+            print(f"\n   RSS (Resident Set Size - Actual RAM):")
+            print(f"      Average: {sum(rss_values) / len(rss_values):.2f} MB")
+            print(f"      Peak:    {max(rss_values):.2f} MB")
+            print(f"      Min:     {min(rss_values):.2f} MB")
+            print(f"      Current: {rss_values[-1]:.2f} MB")
+            print(f"\n   VMS (Virtual Memory Size):")
+            print(f"      Average: {sum(vms_values) / len(vms_values):.2f} MB")
+            print(f"      Peak:    {max(vms_values):.2f} MB")
+            print(f"\n   System RAM Usage:")
+            print(f"      Average: {sum(percent_values) / len(percent_values):.2f}%")
+            print(f"      Peak:    {max(percent_values):.2f}%")
+            print("="*60)
+            
+            # Save memory log to file
+            try:
+                import csv
+                from datetime import datetime
+                log_file = f"memory_usage_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                with open(log_file, 'w', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=['timestamp', 'rss_mb', 'vms_mb', 'percent'])
+                    writer.writeheader()
+                    for sample in memory_samples:
+                        writer.writerow({
+                            'timestamp': datetime.fromtimestamp(sample['time']).isoformat(),
+                            'rss_mb': f"{sample['rss']:.2f}",
+                            'vms_mb': f"{sample['vms']:.2f}",
+                            'percent': f"{sample['percent']:.2f}"
+                        })
+                print(f"\n✅ Memory log saved to: {log_file}")
+            except Exception as e:
+                print(f"\n⚠️  Could not save memory log: {e}")
+        
         print("Demo stopped.")
