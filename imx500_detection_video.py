@@ -1,6 +1,9 @@
 import argparse
 import sys
 import time
+import threading
+import termios
+import tty
 import select
 from functools import lru_cache
 
@@ -19,6 +22,10 @@ args = None  # Will be set in main
 recording = False
 encoder = None
 output = None
+running = True
+key_pressed = None
+key_lock = threading.Lock()
+old_settings = None
 
 
 class Detection:
@@ -191,6 +198,46 @@ def draw_detections(request, stream="main"):
             cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
 
+def keyboard_listener():
+    """Thread function to listen for keyboard input in raw mode."""
+    global key_pressed, running, old_settings
+    try:
+        # Set terminal to raw mode for single character input
+        if sys.stdin.isatty():
+            old_settings = termios.tcgetattr(sys.stdin)
+            tty.setraw(sys.stdin.fileno())
+        
+        while running:
+            try:
+                # Use select with timeout to check for input and allow checking 'running'
+                if sys.stdin.isatty():
+                    # Check if input is available (with 0.1 second timeout)
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        key = sys.stdin.read(1)
+                        if key:
+                            with key_lock:
+                                key_pressed = key
+                else:
+                    # If not a TTY, use select with timeout
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        key = sys.stdin.read(1)
+                        if key:
+                            with key_lock:
+                                key_pressed = key
+            except (EOFError, OSError, KeyboardInterrupt):
+                # stdin closed or not available
+                break
+    except Exception as e:
+        print(f"⚠️  Keyboard input error: {e}")
+    finally:
+        # Restore terminal settings
+        if old_settings and sys.stdin.isatty():
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            except:
+                pass
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, help="Path of the model",
@@ -279,18 +326,27 @@ if __name__ == "__main__":
     print("⌨️  Controls:")
     print("  [r] - Start/Stop recording video")
     print("  [q] - Quit")
+    print("="*60)
+    print("💡 Tip: Make sure the terminal window has focus to use keyboard controls")
     print("="*60 + "\n")
     
+    # Start keyboard listener thread
+    keyboard_thread = threading.Thread(target=keyboard_listener, daemon=True)
+    keyboard_thread.start()
+    
     try:
-        while True:
+        while running:
             last_results = parse_detections(picam2.capture_metadata())
             
-            # Check for key press (non-blocking)
-            if select.select([sys.stdin], [], [], 0)[0]:
-                key = sys.stdin.read(1)
-                
-                if key == 'q':
+            # Check for key press
+            with key_lock:
+                key = key_pressed
+                key_pressed = None  # Clear after reading
+            
+            if key:
+                if key == 'q' or key == '\x1b':  # 'q' or ESC
                     print("\n🛑 Quitting...")
+                    running = False
                     break
                     
                 elif key == 'r':
@@ -309,10 +365,21 @@ if __name__ == "__main__":
                         encoder = None
                         output = None
                         print(f"⏹️  Recording stopped")
+            
+            # Small sleep to prevent busy waiting
+            time.sleep(0.01)
                         
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user")
+        running = False
     finally:
+        running = False
+        # Restore terminal settings
+        if old_settings and sys.stdin.isatty():
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            except:
+                pass
         if recording:
             picam2.stop_recording()
         picam2.stop()
