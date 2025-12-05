@@ -70,22 +70,32 @@ class SerialComms:
         Format: $CV,timestamp,handConf,object_class,objectConf,distance\r\n
         Example: $CV,36888762,0.74,7,0.94,382\r\n
         """
-        # Handle NULL values (empty string when not detected)
+        # Ensure timestamp is full integer (not truncated)
+        timestamp_str = str(int(timeMS))
+        
+        # Handle NULL values - format according to protocol spec
+        # Protocol: Hand Confidence (uint8), Object Class (uint8), Object Conf (uint8), Distance (uint16)
+        # When NULL, leave empty between commas
         hand_conf_str = f"{handConf:.2f}" if handConf is not None else ""
         obj_class_str = str(int(object)) if object is not None else ""
         obj_conf_str = f"{objectConf:.2f}" if objectConf is not None else ""
         distance_str = str(int(distance)) if distance is not None else ""
         
         # Format: $CV,timestamp,handConf,object_class,objectConf,distance\r\n
-        message = f"$CV,{timeMS},{hand_conf_str},{obj_class_str},{obj_conf_str},{distance_str}\r\n"
+        message = f"$CV,{timestamp_str},{hand_conf_str},{obj_class_str},{obj_conf_str},{distance_str}\r\n"
         
         if self.ser and self.ser.is_open:
-            self.ser.write(message.encode('ascii'))
+            encoded_message = message.encode('ascii')
+            bytes_written = self.ser.write(encoded_message)
             self.ser.flush()
+            # Debug: verify full message was written
+            if bytes_written != len(encoded_message):
+                print(f"⚠️  Warning: Only wrote {bytes_written}/{len(encoded_message)} bytes")
             return True
         else:
-            # Fallback to stdout for debugging
-            print(message, end='')
+            # Fallback to stdout for debugging - show the full message (with repr to see special chars)
+            print(f"[STDOUT] {message!r}", flush=True)
+            print(f"[STDOUT] {message}", end='', flush=True)
             return False
     
     def close(self):
@@ -472,6 +482,8 @@ def get_args():
                         help="CV data send rate in Hz (default: 5.0)")
     parser.add_argument("--no-serial", action="store_true",
                         help="Disable serial communication (for testing)")
+    parser.add_argument("--debug-cv", action="store_true",
+                        help="Enable debug output for CV communication")
     
     return parser.parse_args()
 
@@ -541,7 +553,19 @@ if __name__ == "__main__":
     last_cv_send_time = 0
     cv_send_interval = 1.0 / args.cv_rate
     labels = get_labels()
-    glove_category = labels.index("glove") if "glove" in labels else None
+    try:
+        glove_category = labels.index("glove") if "glove" in labels else None
+    except (ValueError, AttributeError):
+        glove_category = None
+        if isinstance(labels, list):
+            for i, label in enumerate(labels):
+                if label and "glove" in str(label).lower():
+                    glove_category = i
+                    break
+    
+    if glove_category is None:
+        print("⚠️  Warning: 'glove' category not found in labels. CV communication may not work correctly.")
+        print(f"   Available labels: {labels}")
     
     # Start recording automatically if requested
     if args.record:
@@ -586,6 +610,16 @@ if __name__ == "__main__":
                     hand_conf, obj_class, obj_conf, distance_mm = extract_cv_data(
                         last_results, labels, glove_category, args.pixel_scale
                     )
+                    
+                    # Debug output (can be removed later)
+                    if args.debug_cv:
+                        num_detections = len(last_results) if last_results else 0
+                        det_categories = [int(d.category) for d in last_results] if last_results else []
+                        print(f"[CV Debug] Detections: {num_detections}, Categories: {det_categories}")
+                        print(f"[CV Debug] Glove category index: {glove_category}")
+                        print(f"[CV Debug] Extracted - hand_conf: {hand_conf}, obj_class: {obj_class}, "
+                              f"obj_conf: {obj_conf}, distance_mm: {distance_mm}")
+                        print(f"[CV Debug] Timestamp: {timestamp_ms}")
                     
                     # Send CV data (following runImage.py sendString pattern)
                     serial_port_obj.sendString(
