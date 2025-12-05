@@ -29,6 +29,7 @@ except ImportError:
 last_detections = []
 args = None  # Will be set in main
 recording = False
+stopping_recording = False  # Flag to track if recording is being stopped
 encoder = None
 output = None
 running = True
@@ -644,7 +645,9 @@ if __name__ == "__main__":
                     break
                     
                 elif key == 'r':
-                    if not recording:
+                    if stopping_recording:
+                        print("⏳ Recording is still stopping, please wait...")
+                    elif not recording:
                         # Start recording
                         video_filename = f"{args.output_dir}/recording_{int(time.time())}.h264"
                         encoder = H264Encoder()
@@ -653,12 +656,27 @@ if __name__ == "__main__":
                         recording = True
                         print(f"🎥 Recording started: {video_filename}")
                     else:
-                        # Stop recording
-                        picam2.stop_recording()
-                        recording = False
-                        encoder = None
-                        output = None
-                        print(f"⏹️  Recording stopped")
+                        # Stop recording - do it asynchronously to avoid blocking main loop
+                        print(f"⏹️  Stopping recording...")
+                        recording = False  # Set flag first
+                        stopping_recording = True
+                        
+                        # Stop recording in background thread to avoid freezing
+                        def stop_recording_thread():
+                            global encoder, output, stopping_recording
+                            try:
+                                picam2.stop_recording()
+                                encoder = None
+                                output = None
+                                stopping_recording = False
+                                print(f"✅ Recording stopped and saved")
+                            except Exception as e:
+                                print(f"⚠️  Error stopping recording: {e}")
+                                encoder = None
+                                output = None
+                                stopping_recording = False
+                        
+                        threading.Thread(target=stop_recording_thread, daemon=True).start()
             
             # Small sleep to prevent busy waiting
             time.sleep(0.01)
