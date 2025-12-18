@@ -188,7 +188,7 @@ def draw_detections(request, stream="main"):
 def get_args():
     parser = argparse.ArgumentParser(description="ExoGlove Object Detection Demo for IMX500")
     parser.add_argument("--model", type=str, help="Path of the model",
-                        default="/home/wei/ExoGlove-YOLOv8/final_output/network.rpk")
+                        default=os.getenv("EXOGLOVE_MODEL_PATH", "final_output/network.rpk"))
     parser.add_argument("--fps", type=int, help="Frames per second")
     parser.add_argument("--bbox-normalization", action=argparse.BooleanOptionalAction, help="Normalize bbox")
     parser.add_argument("--bbox-order", choices=["yx", "xy"], default="yx",

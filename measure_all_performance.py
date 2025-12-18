@@ -20,8 +20,9 @@ except ImportError:
     print("   Memory tracking will be disabled.")
 
 # Configuration
-MODEL_PATH = "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk"
-LABELS_PATH = "/home/wei/ExoGlove-YOLOv8/final_output/labels.txt"
+# Use environment variables or default to relative paths
+MODEL_PATH = os.getenv("EXOGLOVE_MODEL_PATH", "final_output/network.rpk")
+LABELS_PATH = os.getenv("EXOGLOVE_LABELS_PATH", "final_output/labels.txt")
 TEST_DURATION = 30  # seconds
 
 def get_cpu_usage():

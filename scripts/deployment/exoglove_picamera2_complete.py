@@ -129,7 +129,9 @@ class ExoGlovePicamera2Detector:
 
 def main():
     # Initialize detector
-    model_path = "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk"
+    # Use environment variable or default to relative path
+    import os
+    model_path = os.getenv("EXOGLOVE_MODEL_PATH", "final_output/network.rpk")
     detector = ExoGlovePicamera2Detector(model_path)
     
     print("Choose detection method:")

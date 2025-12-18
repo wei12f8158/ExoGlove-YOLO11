@@ -158,7 +158,9 @@ class ExoGloveIMX500Detector:
 
 def main():
     # Initialize detector with your model
-    model_path = "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk"
+    # Use environment variable or default to relative path
+    import os
+    model_path = os.getenv("EXOGLOVE_MODEL_PATH", "final_output/network.rpk")
     detector = ExoGloveIMX500Detector(model_path)
     
     # Run detection

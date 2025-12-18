@@ -16,7 +16,7 @@ def load_exoglove_config():
         "imx500_object_detection": {
             "max_detections": 300,
             "threshold": 0.3,
-            "network_file": "/home/wei/ExoGlove-YOLOv8/final_output/network.rpk",
+            "network_file": "final_output/network.rpk",
             "classes": [
                 "apple", "ball", "bottle", "clip", "glove",
                 "lid", "plate", "spoon", "tape spool"

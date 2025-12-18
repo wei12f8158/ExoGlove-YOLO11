@@ -135,10 +135,10 @@ def draw_detections(request, stream="main"):
 def get_args():
     parser = argparse.ArgumentParser(description="ExoGlove IMX500 with Recording")
     parser.add_argument("--model", type=str, 
-                       default="/home/wei/ExoGlove-YOLOv8/final_output/network.rpk",
+                       default="final_output/network.rpk",
                        help="Path to the .rpk model file")
     parser.add_argument("--labels", type=str,
-                       default="/home/wei/ExoGlove-YOLOv8/final_output/labels.txt",
+                       default="final_output/labels.txt",
                        help="Path to labels file")
     parser.add_argument("--fps", type=int, help="Frames per second")
     parser.add_argument("--bbox-normalization", action=argparse.BooleanOptionalAction)
