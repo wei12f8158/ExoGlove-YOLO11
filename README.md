@@ -189,8 +189,8 @@ A distance threshold gates grasp assistance so the glove only closes when an obj
 ### 1. Clone and install (training host)
 
 ```bash
-git clone https://github.com/wei12f8158/ExoGlove-YOLOv8.git
-cd ExoGlove-YOLOv8
+git clone https://github.com/wei12f8158/ExoGlove-YOLO11.git
+cd ExoGlove-YOLO11
 
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
