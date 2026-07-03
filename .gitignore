@@ -21,11 +21,16 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# Virtual environments
 exoglove_env/
 venv/
+venv_py312/
+.venv/
 env/
 ENV/
+
+# Local notes (may contain personal hosts / credentials)
+Notes.txt
 
 # PyTorch
 *.pth
@@ -40,6 +45,9 @@ training_current.log
 train/images/
 valid/images/
 test/images/
+train/labels/
+valid/labels/
+test/labels/
 
 # Cache files
 *.cache
@@ -65,7 +73,7 @@ Thumbs.db
 *.temp
 *~
 
-# Model files (too large for git, but keep structure)
+# Model weights (too large for git)
 *.pt
 *.onnx
 *.trt
@@ -75,7 +83,5 @@ Thumbs.db
 *.zip
 pi_deployment/
 
-# models (untracked)
+# Local model directories
 models/
-*.pt
-*.onnx

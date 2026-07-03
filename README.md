@@ -1,157 +1,239 @@
-# ExoGlove with Sony IMX500: Efficient Deep Learning Vision for Rehabilitation
+# ExoGlove with Sony IMX500
 
-A real-time embedded vision and sensor fusion system for the ExoGlove, a soft robotic rehabilitation glove designed to support assisted grasping tasks in home or clinical environments.
+Real-time embedded vision and sensor fusion for the **ExoGlove**, a soft robotic rehabilitation glove that supports assisted grasping in home or clinical settings.
 
-## 🎯 Project Overview
+The system runs a quantized **YOLO11-nano** detector on the **Sony IMX500** intelligent vision sensor (on-sensor INT8 inference), fuses detections with **EMG intent** on an ESP32, and coordinates grasp/release logic on a **Raspberry Pi 5**.
 
-This project implements an intelligent vision system for the ExoGlove rehabilitation glove using the Sony IMX500 intelligent vision sensor. The system combines:
+**Author:** Weiping Wu, Department of Electrical and Computer Engineering, San Francisco State University (`wwu@sfsu.edu`)
 
-- **Custom YOLOv8-nano object detection** trained on ~10k images across 9 rehabilitation-relevant object classes
-- **INT8 post-training quantization** for efficient deployment on the IMX500
-- **On-sensor neural inference** that outputs only metadata, reducing host processing load
-- **EMG-based intent detection** for natural user control
-- **Real-time performance** with 12.46 FPS, 80.24 ms latency, and stable thermal operation
+**Keywords:** ExoGlove, Sony IMX500, YOLO11, quantization, edge AI, rehabilitation robotics, sensor fusion
 
-### Object Classes
+<p align="center">
+  <img src="pictures/fig_exoglove_overview.png" alt="ExoGlove soft robotic rehabilitation glove" width="70%">
+</p>
+<p align="center"><em>ExoGlove soft robotic rehabilitation glove with cable-driven actuation and compact servo mechanism.</em></p>
 
-The system detects 9 object classes relevant to rehabilitation tasks:
-- apple, ball, bottle, clip, glove, lid, plate, spoon, tape spool
+## Highlights
 
-## 📖 Background
+| Metric | Value |
+| --- | --- |
+| Model | YOLO11-nano, 9 classes |
+| mAP@50 | 96.7% (best checkpoint, epoch 55) |
+| Quantized size | 3.08 MB (INT8 on IMX500) |
+| Throughput | 12.46 FPS sustained |
+| Latency | 80.24 ms end-to-end |
+| Host CPU | 37.5% on Raspberry Pi 5 |
+| Temperature | 76.8°C steady-state, no throttling |
 
-### Rehabilitation Context
+- On-sensor neural inference: IMX500 outputs detection **metadata only** (boxes, class IDs, confidence)
+- INT8 post-training quantization (PTQ) with less than 2% mAP drop vs FP32
+- EMG-based intent detection for semi-autonomous grasp / release
 
-Hand function is critical for activities of daily living (ADLs) such as grasping utensils, cups, or electronics. Stroke, spinal cord injury, and neuromuscular diseases often lead to impaired hand mobility, reducing independence and quality of life. While intensive clinic-based rehabilitation can partially restore function, frequent long-term therapy is difficult to maintain due to cost, access, and patient fatigue. This motivates compact, low-cost assistive devices that patients can use independently at home.
+**Object classes:** apple, ball, bottle, clip, glove, lid, plate, spoon, tape spool
 
-### ExoGlove System
+## System Overview
 
-The ExoGlove is a soft robotic rehabilitation glove designed to support assisted grasping tasks in home or clinical environments. Unlike conventional robotic systems that rely on external processing, the ExoGlove integrates:
+The ExoGlove integrates:
 
-- **Soft cable-driven actuation**: Flexible material with cables routed along the fingers, controlled by a compact servo mechanism mounted on the forearm
-- **Intelligent vision sensing**: Sony IMX500 camera that performs neural inference directly within the image sensor
-- **EMG-based intent detection**: Surface EMG electrodes on the forearm to measure muscle activity for natural user control
+- **Soft cable-driven actuation** — cables along the fingers, servo on the forearm
+- **Sony IMX500 AI camera** — neural inference inside the image sensor
+- **Surface EMG** — forearm electrodes for natural user intent
 
-The system enables **semi-autonomous grasping**: when the user activates relevant muscles and a target object is detected at a reachable distance, the glove assists in closing the fingers around the object.
+When the user activates relevant muscles and a target object is detected at a reachable distance, the glove assists in closing the fingers around the object.
 
-### Sony IMX500 Intelligent Vision Sensor
+<p align="center">
+  <img src="pictures/fig_exoglove_fusion.jpg" alt="System architecture" width="80%">
+</p>
+<p align="center"><em>System architecture: IMX500 object detection and EMG intent recognition, coordinated by Raspberry Pi 5 and ESP32.</em></p>
 
-The Sony IMX500 is a key innovation in this system. Unlike conventional camera pipelines that stream raw video frames to a host GPU or TPU, the IMX500:
+<p align="center">
+  <img src="pictures/fig_exoglove_multisensor_framework.png" alt="Multi-sensor fusion control framework" width="80%">
+</p>
+<p align="center"><em>Multi-sensor fusion control framework: camera detections, EMG intent, and application logic produce grasp/release commands.</em></p>
 
-- Executes the deep neural network **directly inside the sensor** using an integrated NPU
-- Outputs only **detection metadata** (bounding boxes, class IDs, confidence scores) instead of full images
-- Significantly reduces host processing load and bandwidth requirements
-- Avoids thermal throttling issues observed with embedded accelerators like the Coral Edge TPU
+| IMX500 (on-sensor) | Raspberry Pi 5 (host) | ESP32 |
+| --- | --- | --- |
+| Capture + ISP/DSP pre-process | Configure IMX500 | Sample EMG |
+| INT8 inference on built-in NPU | Parse metadata, distance logic | Intent detection |
+| Metadata over MIPI / I2C | Grasp/release decisions | Drive servo |
 
-The IMX500 uses a stacked architecture combining a CMOS imaging layer with a logic layer containing an ISP (image signal processor), DSP (digital signal processor), and NPU (neural processing unit). This enables on-sensor INT8 inference with minimal host-side computation.
+## Sony IMX500
 
-### Technical Approach
+Unlike pipelines that stream full frames to a host GPU/TPU, the IMX500 runs the network on-sensor and returns only metadata. That cuts host load and bandwidth and avoids thermal throttling seen with some edge accelerators under sustained load.
 
-This work presents a complete embedded vision and sensor fusion system:
+<p align="center">
+  <img src="pictures/fig_imx500_block.jpg" alt="IMX500 stacked architecture" width="70%">
+</p>
+<p align="center"><em>IMX500 stacked architecture: ISP, DSP, and NPU enable on-sensor INT8 inference.</em></p>
 
-1. **Custom YOLOv8-nano model** trained on ~10k images across 9 object classes, achieving 96.7% mAP@50
-2. **INT8 post-training quantization (PTQ)** to reduce model size from 6MB to 3.2MB while maintaining accuracy
-3. **Real-time performance** on Raspberry Pi 5: 12.46 FPS, 80.24 ms latency, 37.5% CPU usage, stable thermal operation
-4. **Sensor fusion** between IMX500 object detection and EMG intent recognition, coordinated by Raspberry Pi 5 and ESP32
+<p align="center">
+  <img src="pictures/fig_imx500_ai_camera.png" alt="Raspberry Pi AI Camera (IMX500)" width="50%">
+</p>
+<p align="center"><em>Raspberry Pi AI Camera (Sony IMX500). Networks are loaded as firmware; metadata is sent to the Pi over MIPI.</em></p>
 
-The system architecture separates responsibilities:
-- **IMX500**: Captures images, runs inference on-sensor, outputs metadata
-- **Raspberry Pi 5**: Configures IMX500, processes detection results, performs application logic
-- **ESP32**: Acquires EMG signals, performs intent detection, controls servo motor
+## Dataset
 
-This design enables real-time perception with modest resource usage, leaving headroom for additional application logic and making it suitable for home rehabilitation settings.
+- **Source:** [Roboflow ExoGlove objects](https://universe.roboflow.com/imx500-muus0/exoglove-ujcr3/dataset/2) (CC BY 4.0)
+- **Images:** 11,701 total (10,215 train / 993 val / 493 test)
+- **Split:** 70% / 20% / 10%
+- **Format:** YOLO annotations; augmentations include flip, color jitter, blur, scale/crop
+- **Calibration:** 500-image set for INT8 PTQ activation ranges
 
-## 📊 Dataset
+<p align="center">
+  <img src="pictures/fig_dataset_distribution.png" alt="Dataset distribution" width="70%">
+</p>
+<p align="center"><em>Dataset distribution across nine classes.</em></p>
 
-- **Source**: Roboflow ExoGlove dataset
-- **Images**: 11,701 total (10,215 train, 993 validation, 493 test)
-- **Classes**: 9 object types
-- **Format**: YOLO format annotations
+Download the dataset from Roboflow (YOLO format) and place it so paths in `data.yaml` resolve:
 
-## 🚀 Quick Start
-
-### Connect to Pi 5
-
-```bash
-# Connect to Pi 5 (replace with your Pi's IP address)
-# Option 1: Using password (not recommended for production)
-sshpass -p 'YOUR_PASSWORD' ssh USERNAME@PI_IP_ADDRESS
-
-# Option 2: Using SSH keys (recommended)
-ssh USERNAME@PI_IP_ADDRESS
-
-# Example:
-# ssh pi@192.168.1.100
+```
+train/images, train/labels
+valid/images, valid/labels
+test/images,  test/labels
 ```
 
-### Connect to Training Server
+## Model Performance
+
+<p align="center">
+  <img src="pictures/fig_system_performance.png" alt="Runtime performance" width="80%">
+</p>
+<p align="center"><em>Runtime performance of the quantized YOLO11-nano model on Raspberry Pi 5 + IMX500.</em></p>
+
+### Training
+
+YOLO11-nano is initialized from COCO-pretrained weights and fine-tuned on the ExoGlove dataset (640×640, SGD, cosine LR, best checkpoint at epoch 55).
+
+<p align="center">
+  <img src="pictures/fig_training_curves1.png" alt="Training curves" width="90%">
+</p>
+<p align="center"><em>Training losses and metrics (precision, recall).</em></p>
+
+<p align="center">
+  <img src="pictures/fig_training_curves2.png" alt="Validation curves" width="90%">
+</p>
+<p align="center"><em>Validation losses and mAP (mAP50, mAP50-95).</em></p>
+
+## Quantization and Deployment
+
+The IMX500 NPU targets **linear INT8** execution. This project uses **post-training quantization (PTQ)** rather than k-means weight clustering or quantization-aware training (QAT).
+
+<p align="center">
+  <img src="pictures/fig_linear_quantization.png" alt="Linear quantization" width="70%">
+</p>
+<p align="center"><em>Linear quantization: FP weights map to integers via scale and zero-point.</em></p>
+
+<p align="center">
+  <img src="pictures/fig_kmeans_quantization.png" alt="K-means quantization" width="70%">
+</p>
+<p align="center"><em>K-means weight quantization compresses storage but typically dequantizes to FP for compute—poor fit for the IMX500 NPU.</em></p>
+
+**Deployed PTQ strategy:**
+
+- Per-channel INT8 weights
+- Per-tensor INT16 activations
+- Calibration on held-out images
+
+Model size drops from ~6 MB (FP32) to **3.08 MB**, with less than 2% mAP degradation.
+
+<p align="center">
+  <img src="pictures/fig_quant_strategy.png" alt="PTQ strategy" width="70%">
+</p>
+<p align="center"><em>Deployed PTQ strategy for IMX500.</em></p>
+
+<p align="center">
+  <img src="pictures/fig_quantization_concept.png" alt="Quantization concept" width="70%">
+</p>
+<p align="center"><em>FP32 values mapped to discrete integer levels.</em></p>
+
+QAT can help under aggressive quantization but adds toolchain complexity; PTQ is sufficient here.
+
+<p align="center">
+  <img src="pictures/fig_qat_block.png" alt="Quantization-aware training" width="70%">
+</p>
+<p align="center"><em>QAT: fake quantization in the forward pass, FP gradients.</em></p>
+
+<p align="center">
+  <img src="pictures/fig_yolo_workflow.png" alt="Deployment pipeline" width="80%">
+</p>
+<p align="center"><em>Pipeline: train → ONNX → INT8 PTQ → IMX500 package → Raspberry Pi.</em></p>
+
+## Distance Estimation and Control
+
+Monocular distance is estimated from bounding-box height for objects with known size:
+
+$$
+d \approx f \cdot \frac{H_{\mathrm{real}}}{H_{\mathrm{pixels}}}
+$$
+
+A distance threshold gates grasp assistance so the glove only closes when an object is reachable.
+
+<p align="center">
+  <img src="pictures/fig_distance_demo.png" alt="Distance estimation" width="70%">
+</p>
+<p align="center"><em>Distance estimation from camera images via calibrated bounding-box height.</em></p>
+
+**Interaction logic:**
+
+1. EMG flex intent **and** a target within the distance threshold → close glove
+2. EMG baseline / release intent → open glove
+
+## Live Demo
+
+<p align="center">
+  <img src="pictures/fig_exoglove_demo.png" alt="Live demo" width="80%">
+</p>
+<p align="center"><em>Live demo: IMX500 detections fused with EMG intent to trigger assisted grasping.</em></p>
+
+## Quick Start
+
+### 1. Clone and install (training host)
 
 ```bash
-# Connect to the training server (replace with your server address)
-ssh YOUR_SERVER_ADDRESS
+git clone https://github.com/wei12f8158/ExoGlove-YOLOv8.git
+cd ExoGlove-YOLOv8
 
-# Example:
-# ssh user@training-server.example.com
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-### Training on Server
+### 2. Dataset
+
+Download the [Roboflow ExoGlove dataset](https://universe.roboflow.com/imx500-muus0/exoglove-ujcr3/dataset/2) in YOLO format and extract so `data.yaml` paths exist (`train/`, `valid/`, `test/`).
+
+### 3. Train
 
 ```bash
-# Train model on the server (55 epochs, CPU)
-nohup yolo train data=data.yaml model=yolov8n.pt epochs=55 imgsz=640 batch=4 device=cpu > training.log 2>&1 &
+# Option A: Ultralytics CLI
+yolo train data=data.yaml model=yolo11n.pt epochs=100 imgsz=640 batch=16
 
-# Monitor training progress
-tail -f training.log
+# Option B: project script (auto-selects CUDA / MPS / CPU)
+python scripts/training/train_exoglove.py
 ```
 
-### Model Transfer Workflow (Mac)
+Weights are written under `runs/`. Use the best checkpoint (paper results used epoch 55).
 
-After training completes on the server, transfer the model to Pi 5:
+### 4. Export for IMX500 (on Raspberry Pi 5)
 
-```bash
-# 1. Copy trained model from server to Mac Downloads
-scp -r YOUR_SERVER_ADDRESS:/path/to/runs/detect/train12 ~/Downloads/
-
-# 2. Create directory on Pi 5
-ssh USERNAME@PI_IP_ADDRESS "mkdir -p ~/ExoGlove-YOLOv8/models/train12"
-
-# 3. Copy model weights to Pi 5
-scp ~/Downloads/train12/weights/best.pt USERNAME@PI_IP_ADDRESS:~/ExoGlove-YOLOv8/models/train12/best.pt
-
-# Example:
-# scp -r user@server.com:/home/user/ExoGlove/runs/detect/train12 ~/Downloads/
-# ssh pi@192.168.1.100 "mkdir -p ~/ExoGlove-YOLOv8/models/train12"
-# scp ~/Downloads/train12/weights/best.pt pi@192.168.1.100:~/ExoGlove-YOLOv8/models/train12/best.pt
-```
-
-### Copy Videos from Pi 5
+Pi setup details: [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) and [`IMX500_DEPLOYMENT_GUIDE.md`](IMX500_DEPLOYMENT_GUIDE.md).
 
 ```bash
-# Copy the whole Videos folder from Pi 5 to Mac
-scp -r USERNAME@PI_IP_ADDRESS:~/Videos ~/Downloads/pi_videos
+# On the Pi, with venv active and best.pt available
+pip install -r requirements_pi.txt
 
-# Example:
-# scp -r pi@192.168.1.100:~/Videos ~/Downloads/pi_videos
-```
-
-### Deployment on Raspberry Pi 5
-
-On the Pi 5, perform quantization and deployment:
-
-```bash
-cd ~/ExoGlove-YOLOv8
-source venv/bin/activate
-
-# 1. Quantize & Convert (20-30 min)
 python3 -c "from ultralytics import YOLO; YOLO('models/best.pt').export(format='imx', imgsz=640, data='data_calib.yaml')"
 
-# 2. Package to .rpk
 imx500-package -i models/best_imx_model/packerOut.zip -o final_output
+```
 
-# 3. Deploy and run detection
-source imx500env/bin/activate
+A pre-exported package may also be available under `best_imx_model/` depending on your checkout.
+
+### 5. Run detection on Pi + IMX500
+
+```bash
 python3 imx500_detection.py --record \
-  --model ~/ExoGlove-YOLOv8/final_output/network.rpk \
-  --labels ~/ExoGlove-YOLOv8/final_output/labels.txt \
+  --model final_output/network.rpk \
+  --labels final_output/labels.txt \
   --bbox-normalization \
   --bbox-order xy \
   --threshold 0.5 \
@@ -161,90 +243,84 @@ python3 imx500_detection.py --record \
   --cv-rate 5.0
 ```
 
-## 📁 Project Structure
+Adjust `--serial-port` and GPIO pins for your wiring. Labels for the nine classes are also in `best_imx_model/labels.txt`.
+
+## Project Structure
 
 ```
 ExoGlove/
-├── data.yaml                 # Dataset configuration
-├── train_from_scratch.py     # Training script
-├── exoglove_pi_inference.py  # Pi inference script
-├── monitor_training.py       # Training monitor
-├── pi_deployment_package.py  # Deployment creator
-├── requirements.txt          # MacBook dependencies
-├── requirements_pi.txt       # Pi dependencies
-├── DEPLOYMENT_GUIDE.md       # Pi setup guide
-├── train/                    # Training images (ignored by git)
-├── valid/                    # Validation images (ignored by git)
-├── test/                     # Test images (ignored by git)
-└── runs/                     # Training outputs (ignored by git)
+├── README.md
+├── data.yaml                      # Dataset config (9 classes)
+├── requirements.txt               # Training host dependencies
+├── requirements_pi.txt            # Raspberry Pi dependencies
+├── imx500_detection.py            # Pi + IMX500 runtime (metadata, EMG UART)
+├── deploy_and_run.sh
+├── DEPLOYMENT_GUIDE.md
+├── IMX500_DEPLOYMENT_GUIDE.md
+├── pictures/                      # Figures used in this README
+├── best_imx_model/                # Example IMX export artifacts / labels
+├── scripts/
+│   ├── training/                  # train_exoglove.py, train_from_scratch.py
+│   ├── deployment/                # Pi helpers and demos
+│   ├── export/                    # IMX / ONNX export utilities
+│   ├── quick_start.py
+│   └── quick_start_pi.py
+├── train/ valid/ test/            # Dataset (download separately; gitignored)
+└── runs/                          # Training outputs (gitignored)
 ```
 
-## 🍓 Pi 5 + IMX500 Setup
+## Hardware
 
-See `DEPLOYMENT_GUIDE.md` for complete setup instructions.
+- Raspberry Pi 5 (8 GB recommended)
+- Raspberry Pi AI Camera (Sony IMX500)
+- ESP32 + surface EMG electrodes + ExoGlove servo hardware
+- MicroSD (32 GB+)
+- Power supply: **5 V / 5 A** recommended for Pi 5 under load
 
-### Hardware Requirements
-- Raspberry Pi 5
-- IMX500 camera module
-- MicroSD card (32GB+)
-- Power supply (5V/3A)
+## Training Configuration (paper)
 
-### Software Requirements
-- Python 3.9+
-- OpenCV
-- ONNX Runtime
-- Ultralytics YOLOv8
+| Setting | Value |
+| --- | --- |
+| Model | YOLO11-nano (`yolo11n.pt`) |
+| Input | 640×640 |
+| Epochs | 100 (deploy best @ 55) |
+| Batch | 4–16 (hardware-dependent) |
+| Optimizer | SGD, momentum 0.937, lr 0.01 cosine, weight decay 5e-4 |
 
-## 📈 Model Performance
+### Export alternatives
 
-- **Architecture**: YOLOv8n (nano)
-- **Parameters**: 3M
-- **Model Size**: ~6MB (FP32), ~3.2MB (INT8 quantized)
-- **Input**: 640x640 RGB images
-- **FPS**: 12.46 on Pi 5 with IMX500
-- **Latency**: 80.24 ms average
-- **CPU Usage**: 37.5% on Raspberry Pi 5
-- **mAP@50**: 96.7%
-- **Classes**: 9 ExoGlove objects
-
-## 🔧 Development
-
-### Training Configuration
-- **Epochs**: 55
-- **Batch Size**: 4
-- **Device**: CPU (on server)
-- **Image Size**: 640x640
-- **Model**: YOLOv8-nano (yolov8n.pt)
-
-### Model Export
-
-#### Export to IMX Format (for IMX500 deployment)
 ```bash
-# On Pi 5, after activating venv
-python3 -c "from ultralytics import YOLO; YOLO('models/best.pt').export(format='imx', imgsz=640, data='data_calib.yaml')"
+# IMX format (Pi + IMX500 toolchain)
+python3 -c "from ultralytics import YOLO; YOLO('runs/detect/train/weights/best.pt').export(format='imx', imgsz=640, data='data.yaml')"
+
+# ONNX (generic)
+python3 -c "from ultralytics import YOLO; YOLO('runs/detect/train/weights/best.pt').export(format='onnx', imgsz=640)"
 ```
 
-#### Export to ONNX (alternative)
-```bash
-# Export to ONNX for standard deployment
-python -c "
-from ultralytics import YOLO
-model = YOLO('models/best.pt')
-model.export(format='onnx', imgsz=640)
-"
-```
+## Limitations and Future Work
 
-## 📝 License
+- Monocular distance from box size is sensitive to object size and viewpoint
+- Nine classes only; more household objects need more data
+- Threshold-based EMG does not adapt to user strength, fatigue, or electrode placement
+- Informal healthy-subject tests only; clinical validation is future work
 
-This project uses the Roboflow ExoGlove dataset under CC BY 4.0 license.
+**Directions:** depth sensing or learned monocular depth; larger / synthetic datasets and sim-to-real; user-specific EMG models; grasp policies conditioned on object class or fragility.
 
-## 🤝 Contributing
+## Acknowledgment
+
+Thanks to Professor Zhuwei Qin for guidance and feedback, and the Mobile and Intelligent Computing Laboratory at San Francisco State University for resources and support.
+
+## License
+
+The Roboflow ExoGlove dataset is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See repository files and Roboflow for dataset terms. Add a project license file if you distribute code under a specific license.
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Open a pull request
 
-## 📞 Support
+## Support
 
 For issues and questions, please open a GitHub issue.
